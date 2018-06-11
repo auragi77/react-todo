@@ -1,2 +1,2 @@
 # react-todo
-todo app by reactNative
+React native To do app by reactNative
