@@ -1,16 +1,27 @@
 import React, {Component} from 'react';
-import { StyleSheet, Text, View , StatusBar, TextInput, Dimensions, Platform, ScrollView} from 'react-native';
+import { StyleSheet, Text, View , StatusBar, TextInput, Dimensions, Platform, ScrollView,AsyncStorage} from 'react-native';
+import {AppLoading} from "expo";
 import ToDo from "./ToDo";
+import uuidv1 from "uuid/v1";
+
 
 const {height,width} = Dimensions.get("window");
 
 export default class App extends Component {
   state ={
-    newToDo :""
+    newToDo :"",
+    loadedTodos : false,
+    toDos: {}
   };
-
+  componentDidMount =() =>{
+    this._loadTodos();
+  }
   render() {
-    const {newToDo} = this.state;
+    const {newToDo,loadedTodos,toDos} = this.state;
+    console.log(toDos);
+    if(!loadedTodos){
+      return (<AppLoading />)
+    }
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
@@ -25,9 +36,20 @@ export default class App extends Component {
             placeholderTextColor={"#999"}
             returnKeyType={"done"}
             autoCorrect={false}
+            onSubmitEditing={this._addTodo}
           />
-          <ScrollView>
-            <ToDo />
+          <ScrollView contentContainerStyle={styles.todos}>
+            {Object.values(toDos)
+            .reverse()
+            .map(toDo => (
+              <ToDo 
+                key={toDo.id}
+                deleteToDo={this._deleteToDo} 
+                uncompleteToDo={this._uncompleteToDo}
+                completeToDo ={this._completeToDo}
+                updateToDo ={this._updateToDo}
+                {...toDo}
+            />))}
           </ScrollView>
         </View>
 
@@ -39,6 +61,123 @@ export default class App extends Component {
         newToDo : text
       });
   };
+  _loadTodos =async () =>{
+    try{
+      const toDos = await AsyncStorage.getItem("toDos");
+      const parsedToDos = JSON.parse(toDos);
+      console.log(toDos);
+      this.setState({
+        loadedTodos : true,
+        toDos:parsedToDos
+      });
+    }catch(err){
+      console.log(err);
+    }
+    
+  };
+  _addTodo =() =>{
+    const {newToDo} = this.state;
+    if(newToDo !==""){
+      this.setState({
+        newToDo : ""
+      });
+      this.setState(prevState =>{
+        const ID = uuidv1();
+        const newToDoObject ={
+          [ID] : {
+            id : ID,
+            isCompleted : false,
+            text : newToDo,
+            createdAt : Date.now()
+          }
+        };
+        const newState ={
+          ...prevState,
+          nowTodo:"",
+          toDos:{
+            ...prevState.toDos,
+            ...newToDoObject
+          }
+        }
+        this._saveToDos(newState.toDos);
+        
+        return {...newState}
+      });
+    }
+  };
+  _deleteToDo =(id) =>{
+    this.setState(prevState =>{
+      const toDos = prevState.toDos;
+      delete toDos[id];
+      const newState ={
+        ...prevState,
+        ...toDos
+      }
+      this._saveToDos(newState.toDos);
+      
+      return {...newState};
+    });
+  };
+  
+  _uncompleteToDo =(id) =>{
+    this.setState(prevState =>{
+      const newState ={
+        ...prevState,
+        toDos:{
+          ...prevState.toDos,
+          [id]:{
+            ...prevState.toDos[id],
+            isCompleted:false
+          }
+        }
+      };
+      this._saveToDos(newState.toDos);
+      
+      return {...newState};
+    });
+  }
+
+  _completeToDo =(id) =>{
+    this.setState(prevState =>{
+      const newState ={
+        ...prevState,
+        toDos:{
+          ...prevState.toDos,
+          [id]:{
+            ...prevState.toDos[id],
+            isCompleted:true
+          }
+        }
+      };
+      this._saveToDos(newState.toDos);
+      
+      return {...newState};
+    });
+  }
+
+  _updateToDo=(id,text) =>{
+    this.setState(prevState =>{
+      const newState ={
+        ...prevState,
+        toDos:{
+          ...prevState.toDos,
+          [id]:{
+            ...prevState.toDos[id],
+            text:text
+          }
+        }
+      };
+      this._saveToDos(newState.toDos);
+      return {...newState};
+    });
+  }
+
+  _saveToDos = newToDos =>{
+    console.log(JSON.stringify(newToDos));
+    const saveToDos = AsyncStorage.setItem("toDos", JSON.stringify(newToDos));
+
+  };
+  
 }
 
 const styles = StyleSheet.create({
@@ -81,6 +220,10 @@ const styles = StyleSheet.create({
     borderBottomColor:"#bbb",
     borderBottomWidth:1,
     fontSize : 25
+  },
+  todos:{
+    alignItems : "center"
   }
+
 
 });
